@@ -1,0 +1,10 @@
+#event_simpleName=ProcessRollup2 event_platform=Win
+| proc_name := lower(FileName) | proc_path := lower(ImageFileName)
+| in(proc_name, values=["atbroker.exe","audiodg.exe","bcdedit.exe","bitsadmin.exe","certreq.exe","certutil.exe","cmstp.exe","conhost.exe","consent.exe","cscript.exe","csrss.exe","dashost.exe","defrag.exe","dfrgui.exe","dism.exe","dllhost.exe","dllhst3g.exe","dwm.exe","eventvwr.exe","finger.exe","fsquirt.exe","logonui.exe","lsaiso.exe","lsass.exe","lsm.exe","msiexec.exe","ntoskrnl.exe","powershell.exe","powershell_ise.exe","pwsh.exe","regsvr32.exe","rundll32.exe","runonce.exe","runtimebroker.exe","schtasks.exe","services.exe","sihost.exe","smartscreen.exe","smss.exe","spoolsv.exe","svchost.exe","taskhost.exe","taskhostw.exe","taskmgr.exe","userinit.exe","werfault.exe","werfaultsecure.exe","wininit.exe","winlogon.exe","winver.exe","wlanext.exe","wscript.exe","wsl.exe","wsmprovhost.exe"])
+| !proc_path=/^\\device\\harddiskvolume\d+\\(\$windows\.~bt|\$winreagent|windows\\softwaredistribution|windows\\system32|windows\\systemtemp|windows\\syswow64|windows\\uus|windows\\winsxs)\\/
+| !proc_path=/\\systemroot\\system32\\/
+| !(proc_name="pwsh.exe" proc_path=/^\\device\\harddiskvolume\d+\\program files\\(powershell\\7(-preview)?\\|windowsapps\\microsoft\.powershell(_|preview))|\\appdata\\local\\microsoft\\windowsapps\\microsoft\.powershell/)
+| !(proc_name="wsl.exe" proc_path=/^\\device\\harddiskvolume\d+\\(program files\\(windowsapps\\microsoftcorporationii\.windowssubsystemforlinux|wsl\\)|users\\[^\\]+\\appdata\\local\\microsoft\\windowsapps\\)/)
+| CommandLine := format("%.250s", field=[CommandLine])
+| ts := formatTime("%Y-%m-%d %H:%M:%S", field=@timestamp, timezone=UTC)
+| table([ts, ComputerName, UserName, ImageFileName, CommandLine, ParentBaseFileName, SHA256HashData, aid, TargetProcessId], limit=1000)
