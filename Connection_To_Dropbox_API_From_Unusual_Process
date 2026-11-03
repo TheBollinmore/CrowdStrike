@@ -1,0 +1,25 @@
+defineTable(name="dbx", query={#event_simpleName=DnsRequest event_platform=Win ContextProcessId=*
+    | dst_host := lower(DomainName)
+    | dst_host=/(^|\.)dropboxapi\.com$/ OR dst_host="api.dropbox.com"
+    | k := format("%s|%s", field=[aid, ContextProcessId])
+    | groupBy([k], function=[collect([dst_host], limit=5), count(as=dns_queries), count(FirstIP4Record, distinct=true, as=dst_ips), min(@timestamp, as=first_seen), max(@timestamp, as=last_seen)], limit=max)}, include=[k, dst_host, dns_queries, dst_ips, first_seen, last_seen])
+| #event_simpleName=ProcessRollup2 event_platform=Win
+| k := format("%s|%s", field=[aid, TargetProcessId])
+| match(table="dbx", field=k, column=k, strict=true)
+| proc_name := lower(FileName) | proc_path := lower(ImageFileName)
+| case { SignInfoFlags=* | q := SignInfoFlags / 262144 | math:floor(q, as=q) | signed := q % 2;  * | signed := "n/a" }
+// DNS attribution noise: Dnscache (svchost as LOCAL SERVICE), Umbrella dnscrypt proxy, MDE network-protection lookups
+| !proc_path=/\\(dnscryptproxy|dnscrypt-proxy|acumbrellaagent)\.exe$|\\windows defender advanced threat protection\\mssense\.exe$/
+| !(proc_name="svchost.exe" UserName=/^(LOCAL SERVICE|NETWORK SERVICE)$/)
+| case {
+    signed!="0" proc_name=/^(dropbox|dropboxupdate|dropboxinstaller)\.exe$/ proc_path=/\\dropbox\\|\\dropboxinc\.dropbox_/ | expected := "true";
+    signed!="0" proc_name=/^(winword|excel|powerpnt|outlook|onenote|msedge|msedgewebview2)\.exe$/ proc_path=/\\(microsoft office|microsoft\\edge|microsoft\\edgewebview|windowsapps\\microsoft\.)/ | expected := "true";
+    signed!="0" proc_name="chrome.exe" proc_path=/\\google\\chrome\\/ | expected := "true";
+    signed!="0" proc_name=/^(acrobat|acrord32|acrocef)\.exe$/ proc_path=/\\adobe\\/ | expected := "true";
+    signed!="0" proc_name="zoom.exe" proc_path=/\\zoom\\bin\\/ | expected := "true";
+    * | expected := "false" }
+| expected="false"
+| CommandLine := format("%.200s", field=[CommandLine])
+| groupBy([ComputerName, UserName, proc_path, SHA256HashData, signed, dst_host], function=[sum(dns_queries, as=dns_queries), max(dst_ips, as=dst_ips), count(as=procs), collect([ParentBaseFileName, CommandLine], limit=1), min(first_seen, as=first_seen), max(last_seen, as=last_seen)], limit=max)
+| first_seen := formatTime("%Y-%m-%d %H:%M", field=first_seen, timezone=UTC) | last_seen := formatTime("%Y-%m-%d %H:%M", field=last_seen, timezone=UTC)
+| sort(dns_queries, order=desc, limit=500)
