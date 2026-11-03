@@ -1,0 +1,10 @@
+#event_simpleName=ProcessRollup2 event_platform=Win
+| in(FileName, values=["powershell.exe","pwsh.exe"], ignoreCase=true)
+| in(ParentBaseFileName, values=["svchost.exe","taskeng.exe","services.exe","wmiprvse.exe","mshta.exe","wscript.exe","cscript.exe","explorer.exe","cmd.exe","conhost.exe"], ignoreCase=true)
+| CommandLine=/(-File|-f|-fi|-fil)\s+"?[A-Za-z]:\\(ProgramData|Users\\[^\\]+\\AppData|Users\\Public|Windows\\Temp|Temp)\\/i OR CommandLine=/-(WindowStyle|w|win|window)\s+(Hidden|Minimized|1|2)/i
+| !in(ParentBaseFileName, values=["NinjaRMMAgent.exe"], ignoreCase=true)
+| CommandLine := format("%.220s", field=[CommandLine])
+| groupBy([CommandLine, ParentBaseFileName], function=[count(as=procs), count(aid, distinct=true, as=hosts), collect([ComputerName, UserName], limit=4), min(@timestamp, as=first), max(@timestamp, as=last)], limit=max)
+| hosts <= 10
+| first := formatTime("%m-%d %H:%M", field=first, timezone=UTC) | last := formatTime("%m-%d %H:%M", field=last, timezone=UTC)
+| sort(procs, order=desc, limit=50)
