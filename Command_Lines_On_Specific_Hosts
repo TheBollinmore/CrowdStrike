@@ -1,0 +1,7 @@
+#event_simpleName=ProcessRollup2 event_platform=Win
+| in(ComputerName, values=[""], ignoreCase=true)
+| in(FileName, values=["powershell.exe","pwsh.exe","powershell_ise.exe"], ignoreCase=true)
+| CommandLine := format("%.250s", field=[CommandLine])
+| groupBy([ComputerName, ParentBaseFileName, UserName, CommandLine], function=[count(as=procs), min(@timestamp, as=first), max(@timestamp, as=last)], limit=50)
+| first := formatTime("%m-%d %H:%M", field=first, timezone=UTC) | last := formatTime("%m-%d %H:%M", field=last, timezone=UTC)
+| sort(procs, order=desc, limit=50)
