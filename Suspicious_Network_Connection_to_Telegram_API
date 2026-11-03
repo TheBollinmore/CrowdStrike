@@ -1,0 +1,5 @@
+#event_simpleName=DnsRequest event_platform=Win
+| DomainName=/(^|\.)api\.telegram\.org$/i
+| !in(ContextBaseFileName, values=["chrome.exe","msedge.exe","firefox.exe"], ignoreCase=true)
+| ts := formatTime("%Y-%m-%d %H:%M:%S", field=@timestamp, timezone=UTC)
+| table([ts, ComputerName, ContextBaseFileName, ContextProcessId, DomainName, FirstIP4Record, aid], limit=1000)
